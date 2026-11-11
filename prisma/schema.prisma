@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  master
+}
+
+enum LeadStatus {
+  new
+  sold
+  invalid
+  refund
+  direct
+}
+
+enum TransactionType {
+  topup
+  debit
+  refund
+}
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  role      UserRole @default(master)
+  createdAt DateTime @default(now())
+  master    Master?
+}
+
+model Master {
+  id        String          @id @default(cuid())
+  userId    String          @unique
+  user      User            @relation(fields: [userId], references: [id])
+  balance   Int             @default(0)
+  isBlocked Boolean        @default(false)
+  createdAt DateTime        @default(now())
+  categories MasterCategory[]
+  soldLeads Lead[]         @relation("LeadSoldTo")
+  transactions Transaction[]
+}
+
+model MasterCategory {
+  id           String   @id @default(cuid())
+  masterId     String
+  categoryId   String
+  pricePerLead Int
+  active       Boolean  @default(true)
+  master       Master   @relation(fields: [masterId], references: [id])
+  category     Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([masterId, categoryId])
+}
+
+model Category {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  icon            String          @default("🛠️")
+  seoTitle        String
+  seoDescription  String
+  description     String          @db.Text
+  basePriceFrom   Int
+  subcategories   Subcategory[]
+  leads           Lead[]
+  masterLinks     MasterCategory[]
+  createdAt       DateTime        @default(now())
+}
+
+model Subcategory {
+  id             String   @id @default(cuid())
+  categoryId     String
+  name           String
+  slug           String
+  seoTitle       String
+  seoDescription String
+  priceFrom      Int?
+  category       Category @relation(fields: [categoryId], references: [id])
+  leads          Lead[]
+
+  @@unique([categoryId, slug])
+}
+
+model Lead {
+  id             String      @id @default(cuid())
+  name           String
+  phone          String
+  categoryId     String
+  subcategoryId  String?
+  district       String
+  description    String      @db.Text
+  preferredCallTime String
+  status         LeadStatus  @default(new)
+  price          Int?
+  soldToMasterId String?
+  rejectReason   String?
+  createdAt      DateTime    @default(now())
+  soldToMaster   Master?     @relation("LeadSoldTo", fields: [soldToMasterId], references: [id])
+  category       Category    @relation(fields: [categoryId], references: [id])
+  subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id])
+  transactions   Transaction[]
+}
+
+model Transaction {
+  id        String          @id @default(cuid())
+  masterId  String
+  leadId    String?
+  type      TransactionType
+  amount    Int
+  note      String?
+  createdAt DateTime        @default(now())
+  master    Master          @relation(fields: [masterId], references: [id])
+  lead      Lead?           @relation(fields: [leadId], references: [id])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  name      String
+  text      String   @db.Text
+  rating    Int
+  createdAt DateTime @default(now())
+}
